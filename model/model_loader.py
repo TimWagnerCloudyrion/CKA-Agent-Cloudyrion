@@ -394,6 +394,25 @@ class WhiteBoxModel(BaseModel):
         else:
             torch_dtype = torch.float16
 
+        # Prepare base kwargs (always safe)
+        base_kwargs = {
+            "token": hf_token or self.hf_token,
+            "torch_dtype": torch_dtype,
+            "trust_remote_code": True,
+        }
+
+        # Conditionally add quantization parameters
+        # Qwen 3.5 and some newer models don't support load_in_8bit/load_in_4bit
+        quantization_kwargs = {}
+
+        # Only add quantization params if model explicitly supports them
+        # Skip for Qwen models as they use different quantization approach
+        if "qwen" not in self.model_name.lower():
+            if self.load_in_8bit:
+                quantization_kwargs["load_in_8bit"] = True
+            elif self.load_in_4bit:
+                quantization_kwargs["load_in_4bit"] = True
+
         # Load model
         if self.device_map is None:
             # Handle auto device selection for multi-GPU
@@ -401,12 +420,9 @@ class WhiteBoxModel(BaseModel):
                 # Use Transformers automatic device mapping across available GPUs
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_name,
-                    token=hf_token or self.hf_token,
-                    torch_dtype=torch_dtype,
                     device_map="auto",
-                    load_in_8bit=self.load_in_8bit,
-                    load_in_4bit=self.load_in_4bit,
-                    trust_remote_code=True,
+                    **base_kwargs,
+                    **quantization_kwargs,
                 )
                 # Record effective device_map for downstream logic
                 self.device_map = "auto"
@@ -414,29 +430,24 @@ class WhiteBoxModel(BaseModel):
                 # Single device loading
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_name,
-                    token=hf_token or self.hf_token,
-                    torch_dtype=torch_dtype,
-                    load_in_8bit=self.load_in_8bit,
-                    load_in_4bit=self.load_in_4bit,
-                    trust_remote_code=True,
+                    **base_kwargs,
+                    **quantization_kwargs,
                 )
                 self.model = self.model.to(self.device)
         else:
             # Multi-device loading
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
-                token=hf_token or self.hf_token,
-                torch_dtype=torch_dtype,
                 device_map=self.device_map,
-                load_in_8bit=self.load_in_8bit,
-                load_in_4bit=self.load_in_4bit,
-                trust_remote_code=True,
+                **base_kwargs,
+                **quantization_kwargs,
             )
 
         self.logger.info("Hugging Face model successfully loaded.")
 
     def generate(self, prompt: str) -> str:
         """Generate response for a single prompt."""
+        print(f"Generating responses for prompt {prompt[:10]}")
         if self.use_vllm and self.vllm_model is not None:
             return self._generate_vllm([prompt])[0]
         else:
@@ -444,6 +455,7 @@ class WhiteBoxModel(BaseModel):
 
     def generate_batch(self, prompts: List[str]) -> List[str]:
         """Generate responses for a batch of prompts."""
+        print(f"Generating responses for prompts {prompts[0][:10]}")
         if self.use_vllm and self.vllm_model is not None:
             return self._generate_vllm(prompts)
         else:
@@ -482,6 +494,7 @@ class WhiteBoxModel(BaseModel):
 
     def _generate_hf(self, prompt: str) -> str:
         """Generate response using Hugging Face Transformers."""
+        print(f"Generating responses for prompt {prompt[:10]}")
         try:
             # Format prompt for Llama models
             if "llama" in self.model_name.lower():
@@ -643,6 +656,36 @@ class BlackBoxModel(BaseModel):
                     raise ImportError(
                         "google-genai client not available. Install with: pip install google-genai"
                     )
+        elif provider == "huggingface":
+            try:
+                from huggingface_hub import InferenceClient
+            except ImportError:
+                raise ImportError(
+                    "huggingface_hub not available. Install with: pip install huggingface_hub"
+                )
+
+            hf_token = (
+                    self.config.get("hf_api_token")
+                    or self.api_key
+                    or os.environ.get("HF_TOKEN")
+                    or os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+            )
+            hf_endpoint = self.config.get("hf_endpoint")  # optional dedicated endpoint URL
+            hf_timeout = self.config.get("hf_timeout", self.timeout)
+
+            if hf_endpoint:
+                self.hf_client = InferenceClient(
+                    base_url=hf_endpoint,
+                    token=hf_token,
+                    timeout=hf_timeout,
+                )
+            else:
+                # Serverless Inference API route; model name must be set
+                self.hf_client = InferenceClient(
+                    model=self.model_name,
+                    token=hf_token,
+                    timeout=hf_timeout,
+                )
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -800,6 +843,7 @@ class BlackBoxModel(BaseModel):
 
     def _generate_api(self, prompt: str) -> str:
         """Generate response using API."""
+        self.logger.info("Generating response")
         attempt = 0
         while True:
             try:
@@ -962,6 +1006,36 @@ class BlackBoxModel(BaseModel):
                         "Gemini returned empty content; treating as refusal and skipping retries."
                     )
                     return "I'm sorry, I can't assist with that."
+                elif provider == "huggingface":
+                    # Preferred: chat-completions style if available
+                    try:
+                        resp = self.hf_client.chat.completions.create(
+                            model=self.model_name,
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=self.max_tokens,
+                            temperature=self.temperature,
+                            top_p=self.top_p,
+                        )
+                        content = (resp.choices[0].message.content or "").strip()
+                        if content:
+                            return content
+                    except Exception:
+                        # Fallback: plain text-generation API
+                        pass
+
+                    tg = self.hf_client.text_generation(
+                        prompt,
+                        max_new_tokens=self.max_tokens,
+                        temperature=self.temperature,
+                        top_p=self.top_p,
+                        do_sample=self.do_sample,
+                        return_full_text=False,
+                    )
+                    text = tg if isinstance(tg, str) else getattr(tg, "generated_text", "")
+                    text = (text or "").strip()
+                    if text:
+                        return text
+                    raise RuntimeError("Empty response content")
                 else:
                     raise ValueError(f"Unsupported provider for generation: {provider}")
             except Exception as e:
@@ -1199,6 +1273,31 @@ class BlackBoxModel(BaseModel):
                 prompt = "\n\n".join(text_parts)
                 outputs.append(self._generate_api(prompt))
             return outputs
+        elif provider == "huggingface":
+            for messages in messages_batches:
+                # Try native chat first
+                try:
+                    resp = self.hf_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=messages,
+                        max_tokens=self.max_tokens,
+                        temperature=self.temperature,
+                        top_p=self.top_p,
+                    )
+                    content = (resp.choices[0].message.content or "").strip()
+                    if content:
+                        outputs.append(content)
+                        continue
+                except Exception:
+                    pass
+
+                # Fallback: flatten messages to prompt
+                prompt = "\n\n".join(
+                    f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
+                )
+                outputs.append(self._generate_api(prompt))
+            return outputs
+
         else:
             raise ValueError(f"Unsupported provider for messages: {provider}")
 

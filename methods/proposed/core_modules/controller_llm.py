@@ -222,9 +222,10 @@ class ControllerLLM:
 
     def __init__(
         self,
-        model_name: str = "huihui-ai/Qwen3-32B-abliterated",
+        model_name: str = "huihui-ai/Huihui-Qwen3.5-9B-abliterated",
         config: Dict = None,
         tool_registry=None,
+        blackbox_model=None,
         whitebox_model=None,  # NEW: Accept pre-loaded WhiteBoxModel to avoid double init
     ):
         self.config = config or {}
@@ -266,6 +267,50 @@ class ControllerLLM:
             self._use_whitebox_model(whitebox_model)
         elif self.auto_init:
             self.initialize_model()
+
+        self.blackbox_model = None
+
+        if blackbox_model is not None:
+            self.bind_blackbox_model(blackbox_model)
+        elif whitebox_model is not None:
+            self._use_whitebox_model(whitebox_model)
+        elif self.auto_init:
+            self.initialize_model()
+
+    def bind_blackbox_model(self, blackbox_model) -> None:
+        """
+        Attach a BlackBoxModel instance for controller inference.
+        This avoids local tokenizer/model usage in controller chat.
+        """
+        self.blackbox_model = blackbox_model
+        self.model_name = getattr(blackbox_model, "model_name", self.model_name)
+        self.logger.info(f"[Controller] Bound blackbox model: {self.model_name}")
+
+    def _chat_with_blackbox(self, messages: List[Dict[str, str]]) -> str:
+        """
+        Execute controller chat via BlackBoxModel.
+        Prefer native message API if available, fallback to flattened prompt.
+        """
+        if not hasattr(self, "blackbox_model") or self.blackbox_model is None:
+            raise RuntimeError("Blackbox model is not bound to ControllerLLM")
+
+        try:
+            # Reuse the model's multi-turn message path
+            print(f"Controller LLM Response generation...")
+            start = time.perf_counter()
+            outs = self.blackbox_model.generate_batch_messages([messages])
+            print(f"Controller LLM Response generated in {time.perf_counter() - start}")
+            text = outs[0] if outs else ""
+        except Exception:
+            # Fallback for providers without robust message support
+            print(f"Controller LLM Response generation...")
+            start = time.perf_counter()
+            prompt = self._messages_to_prompt(messages)
+            text = self.blackbox_model.generate(prompt)
+            print(f"Controller LLM Response generated in {time.perf_counter() - start}: ", len(text.strip()),
+                  " characters")
+
+        return (text or "").strip()
 
     def _use_whitebox_model(self, whitebox_model):
         """Use a pre-loaded WhiteBoxModel instead of initializing own model."""
@@ -419,6 +464,10 @@ class ControllerLLM:
     ) -> str:
         """Chat wrapper for controller prompts with optional tool calling."""
         # Use tool calling if enabled
+
+        if self.blackbox_model is not None:
+            return self._chat_with_blackbox(messages)
+
         if self.enable_tool_calling and self.openai_client:
             return self._chat_with_tools(messages, tools, tool_choice)
 
@@ -468,11 +517,14 @@ class ControllerLLM:
                     eos_token_id=self.tokenizer.eos_token_id,
                 )
 
+                print(f"Controller LLM Response generation...")
+                start = time.perf_counter()
                 outputs = self.model.generate(**inputs, generation_config=gen_cfg)
                 input_len = inputs["input_ids"].shape[1]
                 text = self.tokenizer.decode(
                     outputs[0][input_len:], skip_special_tokens=True
                 )
+                print(f"Controller LLM Response generated in {time.perf_counter() - start}: ", len(text.strip()), " characters")
                 return text.strip()
 
     def _chat_with_tools(

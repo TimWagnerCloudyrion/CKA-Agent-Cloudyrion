@@ -374,19 +374,15 @@ class Evaluator:
         return all_messages
 
     def _execute_unified_batch_inference(
-        self, messages_batch: List[Dict], controller_llm
+            self, messages_batch: List[Dict], controller_llm
     ) -> List[str]:
         """
-        Execute unified batch inference using vLLM or fallback to sequential.
-
-        Args:
-            messages_batch: List of message dicts (may contain None placeholders)
-            controller_llm: Controller LLM instance
-
-        Returns:
-            List of response strings (aligned with messages_batch, None for placeholders)
+        Execute unified batch inference using:
+        1) BlackBoxModel batch messages API (if controller is blackbox-bound)
+        2) vLLM batch generate (if local vLLM engine exists)
+        3) Sequential controller chat fallback
         """
-        # Filter out None placeholders and track indices
+        # Filter out None placeholders and track original indices
         valid_messages = []
         valid_indices = []
         for i, msgs in enumerate(messages_batch):
@@ -402,38 +398,45 @@ class Evaluator:
         )
 
         try:
-            # Use vLLM batch inference if available
-            if (
-                hasattr(controller_llm, "_vllm_engine")
-                and controller_llm._vllm_engine is not None
+            valid_responses = None
+
+            # Path 1: controller bound to blackbox model (your new default)
+            blackbox_model = getattr(controller_llm, "blackbox_model", None)
+            if blackbox_model is not None and hasattr(blackbox_model, "generate_batch_messages"):
+                self.logger.info(
+                    "[Unified Batch Inference] Using BlackBoxModel.generate_batch_messages"
+                )
+                valid_responses = blackbox_model.generate_batch_messages(valid_messages)
+
+            # Path 2: local vLLM engine
+            elif (
+                    hasattr(controller_llm, "_vllm_engine")
+                    and controller_llm._vllm_engine is not None
             ):
                 from vllm import SamplingParams
 
-                # Convert messages to prompts
                 batch_prompts = [
                     controller_llm._messages_to_prompt(msgs) for msgs in valid_messages
                 ]
-
                 params = SamplingParams(
                     max_tokens=controller_llm.max_new_tokens,
                     temperature=controller_llm.temperature,
                     top_p=controller_llm.top_p,
                 )
-
                 outputs = controller_llm._vllm_engine.generate(batch_prompts, params)
                 valid_responses = [out.outputs[0].text.strip() for out in outputs]
-
                 self.logger.info(
                     f"[Unified Batch Inference] vLLM batch completed: {len(valid_responses)} responses"
                 )
+
+            # Path 3: sequential fallback
             else:
-                # Fallback to sequential
-                self.logger.warning(
-                    "[Unified Batch Inference] vLLM not available, falling back to sequential"
+                self.logger.info(
+                    "[Unified Batch Inference] No blackbox batch API or vLLM engine; using sequential chat"
                 )
                 valid_responses = [controller_llm.chat(msgs) for msgs in valid_messages]
 
-            # Reconstruct full response list with None placeholders
+            # Reconstruct to original shape (with None placeholders)
             all_responses = [None] * len(messages_batch)
             for idx, response in zip(valid_indices, valid_responses):
                 all_responses[idx] = response
@@ -442,7 +445,6 @@ class Evaluator:
 
         except Exception as e:
             self.logger.error(f"[Unified Batch Inference] Failed: {e}")
-            # Return default responses for all
             return [None] * len(messages_batch)
 
     def _parse_unified_responses(

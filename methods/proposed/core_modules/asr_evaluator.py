@@ -292,11 +292,12 @@ class ASRJudge:
     def _load_hf_model(self):
         """Load model using HuggingFace Transformers."""
         print("=" * 80)
-        print("🔧 [ASR Judge] Starting HuggingFace model loading")
+        print("📦 [ASR Judge] Starting HuggingFace model loading")
         print("=" * 80)
-        self.logger.info("[ASR Judge] Loading model with HuggingFace Transformers")
+        self.logger.info(f"[ASR Judge] Loading HuggingFace model: {self.model_name}")
 
         print(f"📝 [ASR Judge] Model name: {self.model_name}")
+        print(f"🔧 [ASR Judge] Device: {self.device}")
         print(f"🔧 [ASR Judge] Device map: {self.device_map}")
         print(f"💾 [ASR Judge] Data type: {self.torch_dtype}")
         print(f"🔢 [ASR Judge] 8bit quantization: {self.load_in_8bit}")
@@ -311,14 +312,30 @@ class ASRJudge:
             else self.torch_dtype
         )
 
+        # Prepare base kwargs
+        base_kwargs = {
+            "token": self.hf_token,
+            "trust_remote_code": True,
+            "torch_dtype": dtype,
+            "device_map": self.device_map,
+        }
+
+        # Conditionally add quantization parameters
+        # Qwen 3.5 and some newer models don't support load_in_8bit/load_in_4bit
+        quantization_kwargs = {}
+
+        # Only add quantization params if model explicitly supports them
+        # Skip for Qwen models as they use different quantization approach
+        if "qwen" not in self.model_name.lower():
+            if self.load_in_8bit:
+                quantization_kwargs["load_in_8bit"] = True
+            elif self.load_in_4bit:
+                quantization_kwargs["load_in_4bit"] = True
+
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
-            token=self.hf_token,
-            trust_remote_code=True,
-            torch_dtype=dtype,
-            device_map=self.device_map,
-            load_in_8bit=self.load_in_8bit,
-            load_in_4bit=self.load_in_4bit,
+            **base_kwargs,
+            **quantization_kwargs,
         )
 
         self.model.eval()

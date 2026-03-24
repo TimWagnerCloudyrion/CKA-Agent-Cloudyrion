@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Credentials included
+.run_experiment.sh
+
 # Distribution / packaging
 .Python
 build/

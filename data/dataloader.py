@@ -61,10 +61,14 @@ class DataLoader:
             # Load HarmBench CKA dataset
             data = self._load_harmbench_cka(**kwargs)
             return data
+        elif name == "custom_cka" or name == "custom-cka" or name == "custom":
+            # Load Custom CKA dataset
+            data = self._load_custom_cka(**kwargs)
+            return data
         else:
             raise ValueError(
                 f"Dataset '{dataset_name}' is not supported yet. "
-                f"Supported datasets: ['strongreject', 'ckjail', 'jbb_behaviors_cka', 'strongreject_cka', 'harmbench_cka']"
+                f"Supported datasets: ['strongreject', 'ckjail', 'jbb_behaviors_cka', 'strongreject_cka', 'harmbench_cka', 'custom_cka']"
             )
 
     def _load_jbb_behaviors_cka(self) -> List[Dict[str, Any]]:
@@ -255,6 +259,67 @@ class DataLoader:
 
         print(
             f"Successfully loaded {len(data_list)} samples from HarmBench CKA dataset"
+        )
+        return data_list
+
+    def _load_custom_cka(self) -> List[Dict[str, Any]]:
+        """
+        Load Custom CKA dataset.
+
+        Expects CSV at <data_dir>/cka-attack/custom_cka_dataset.csv with columns:
+        - category
+        - source
+        - forbidden_prompt
+
+        Returns:
+            List[Dict[str, Any]]: List of data samples with keys:
+                                - 'query': forbidden_prompt content
+                                - 'source': source information
+                                - 'category': category classification
+                                - 'target_str': (optional) target string if present in dataset
+
+        Raises:
+            FileNotFoundError: If the dataset file doesn't exist
+            ValueError: If required columns are missing
+        """
+        file_path = os.path.join(
+            self.data_dir, "cka-attack", "custom_cka_dataset.csv"
+        )
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Dataset file not found: {file_path}")
+
+        try:
+            df = pd.read_csv(file_path)
+        except Exception as e:
+            raise Exception(f"Error reading CSV file {file_path}: {str(e)}")
+
+        # Validate required columns
+        required_columns = ["category", "source", "forbidden_prompt"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
+        # Convert DataFrame to list of dictionaries
+        data_list = []
+        for _, row in df.iterrows():
+            sample = {
+                "query": row["forbidden_prompt"],
+                "source": row["source"],
+                "category": row["category"],
+            }
+            # Preserve target_str if it exists in the dataset
+            if "target_str" in df.columns:
+                sample["target_str"] = row["target_str"]
+            data_list.append(sample)
+
+        # Store loaded data for statistics
+        dataset_key = "custom_cka"
+        self.loaded_data[dataset_key] = data_list
+        self._compute_statistics(dataset_key, data_list)
+
+        print(
+            f"Successfully loaded {len(data_list)} samples from Custom CKA dataset"
         )
         return data_list
 

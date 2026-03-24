@@ -1,0 +1,140 @@
+# =============================================================================
+# CKA-Agent API Proxy Configuration
+# =============================================================================
+# This file defines how the proxy translates OpenAI-compatible requests
+# from the CKA-Agent into requests for your target API.
+#
+# Copy this file to proxy_config.yml and edit to match your target API.
+# =============================================================================
+
+# Proxy server settings
+server:
+  host: "127.0.0.1"
+  port: 8081
+
+# Target API configuration
+target:
+  # The URL to send requests to
+  url: "https://api.example.com/v1/generate"
+
+  # HTTP method (GET, POST, PUT, etc.)
+  method: "POST"
+
+  # Headers to send with every request to the target API
+  # Use ${ENV_VAR} syntax to reference environment variables
+  headers:
+    Content-Type: "application/json"
+    Authorization: "Bearer ${TARGET_API_KEY}"
+
+  # Request timeout in seconds
+  timeout: 120
+
+# =============================================================================
+# Request Template (Jinja2)
+# =============================================================================
+# Define how to transform the incoming OpenAI request into your target API format.
+#
+# Available variables in the template:
+#   - messages:     List of message dicts [{"role": "user", "content": "..."}]
+#   - prompt:       The last user message as a plain string
+#   - model:        The model name from the request
+#   - temperature:  Temperature value from the request
+#   - max_tokens:   Max tokens from the request
+#   - top_p:        Top-p value from the request
+#   - full_request: The entire original OpenAI request dict
+#
+# The template must produce valid JSON.
+# =============================================================================
+request_template: |
+  {
+    "prompt": "{{ prompt }}",
+    "max_tokens": {{ max_tokens }},
+    "temperature": {{ temperature }}
+  }
+
+# =============================================================================
+# Response Extraction
+# =============================================================================
+# Define how to extract the generated text from the target API's response.
+#
+# Uses a dot-notation path to navigate the JSON response.
+# Examples:
+#   "output.text"              -> response["output"]["text"]
+#   "results.0.generated_text" -> response["results"][0]["generated_text"]
+#   "choices.0.message.content"-> response["choices"][0]["message"]["content"]
+#   "text"                     -> response["text"]
+#   ""                         -> treat entire response body as plain text
+# =============================================================================
+response_extract: "output.text"
+
+
+# =============================================================================
+# EXAMPLES for common APIs
+# =============================================================================
+#
+# --- Example: Hugging Face Inference API ---
+# target:
+#   url: "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B-Instruct"
+#   method: "POST"
+#   headers:
+#     Content-Type: "application/json"
+#     Authorization: "Bearer ${HF_TOKEN}"
+#   timeout: 120
+# request_template: |
+#   {
+#     "inputs": "{{ prompt }}",
+#     "parameters": {
+#       "max_new_tokens": {{ max_tokens }},
+#       "temperature": {{ temperature }},
+#       "top_p": {{ top_p }}
+#     }
+#   }
+# response_extract: "0.generated_text"
+#
+# --- Example: Ollama ---
+# target:
+#   url: "http://localhost:11434/api/chat"
+#   method: "POST"
+#   headers:
+#     Content-Type: "application/json"
+#   timeout: 300
+# request_template: |
+#   {
+#     "model": "{{ model }}",
+#     "messages": {{ messages | tojson }},
+#     "stream": false,
+#     "options": {
+#       "temperature": {{ temperature }},
+#       "num_predict": {{ max_tokens }}
+#     }
+#   }
+# response_extract: "message.content"
+#
+# --- Example: Custom REST API ---
+# target:
+#   url: "https://my-internal-api.company.com/inference"
+#   method: "POST"
+#   headers:
+#     Content-Type: "application/json"
+#     X-Api-Key: "${MY_API_KEY}"
+#   timeout: 60
+# request_template: |
+#   {
+#     "input_text": "{{ prompt }}",
+#     "config": {
+#       "max_length": {{ max_tokens }},
+#       "sampling_temperature": {{ temperature }}
+#     }
+#   }
+# response_extract: "result.response_text"
+#
+# --- Example: Plain text API (response is raw text, not JSON) ---
+# target:
+#   url: "https://simple-api.example.com/generate"
+#   method: "POST"
+#   headers:
+#     Content-Type: "text/plain"
+#   timeout: 60
+# request_template: |
+#   {{ prompt }}
+# response_extract: ""

@@ -22,7 +22,7 @@ from methods.proposed.core_modules.controller_llm import ControllerLLM
 
 # from methods.proposed.core_modules.target_llm import TargetModel
 from methods.proposed.core_modules.agent_evaluator import Evaluator
-from abstract_method import AbstractJailbreakMethod
+from methods.abstract_method import AbstractJailbreakMethod
 from methods.proposed.core_modules.utils import ActionType
 from methods.proposed.core_modules.synthesizer import Synthesizer
 from methods.proposed.core_modules.utils import TreeNode
@@ -209,10 +209,16 @@ class CKAAgentMethod(AbstractJailbreakMethod):
             "vllm_kwargs": ctrl_cfg.get("vllm_kwargs", {}),
             "device_map": ctrl_cfg.get("device_map", None),
             "max_length": ctrl_cfg.get("max_tokens", 1024),
+            "max_tokens": ctrl_cfg.get("max_tokens", 1024),  # add
             "temperature": ctrl_cfg.get("temperature", 0.7),
             "top_p": ctrl_cfg.get("top_p", 0.9),
             "do_sample": ctrl_cfg.get("do_sample", True),
-            "hf_token": ctrl_cfg.get("hf_token"),
+            "provider": ctrl_cfg.get("provider", "huggingface"),
+            "api_key": ctrl_cfg.get("api_key"),  # add
+            "use_proxy": ctrl_cfg.get("use_proxy", False),  # add
+            "proxy_api_key": ctrl_cfg.get("proxy_api_key"),  # add
+            "base_url": ctrl_cfg.get("base_url"),  # add
+            "hf_api_token": ctrl_cfg.get("hf_api_token") or ctrl_cfg.get("hf_api_key"),
             "controller_compat": True,
             "input_max_length": int(ctrl_cfg.get("input_max_length", 2048)),
         }
@@ -232,7 +238,7 @@ class CKAAgentMethod(AbstractJailbreakMethod):
         )
         # ===== END GPU allocation =====
 
-        self.attack_lm = WhiteBoxModel(ctrl_cfg.get("name", ""), controller_config)
+        self.attack_lm = BlackBoxModel(ctrl_cfg.get("name", ""), controller_config)
 
         self.attack_lm.load(ctrl_cfg.get("hf_token"))
         self.attack_template_name = self.attack_lm.model_name
@@ -265,7 +271,7 @@ class CKAAgentMethod(AbstractJailbreakMethod):
         self.controller = ControllerLLM(
             config=ctrl_cfg,
             tool_registry=tool_registry,
-            whitebox_model=self.attack_lm,  # Reuse the loaded model
+            blackbox_model=self.attack_lm,  # Reuse the loaded model
         )
 
         # # ---- Online judge for agent (distinct from evaluation phase) ----
