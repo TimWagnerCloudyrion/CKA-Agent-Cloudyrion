@@ -38,7 +38,7 @@ def handle_request(prompt: str) -> str:
     """
 
     # -------------------------------------------------------------------------
-    # TODO: Replace this with your actual API call.
+    # Replace this with your actual API call.
     # -------------------------------------------------------------------------
 
     from openai import OpenAI
