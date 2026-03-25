@@ -6,8 +6,13 @@ The only contract is: string in, string out.
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 IO_LOG_FILE = Path(__file__).parent / "io_log.jsonl"
 
@@ -44,8 +49,8 @@ def handle_request(prompt: str) -> str:
     from openai import OpenAI
 
     client = OpenAI(
-        base_url="http://16.16.162.190:8080/api",
-        api_key="..."
+        base_url="http://12.12.12.12:8080/api",
+        api_key=os.getenv("TARGET_API_KEY"),
     )
 
     response = client.chat.completions.create(
@@ -116,3 +121,6 @@ def handle_request(prompt: str) -> str:
     # )
     # resp.raise_for_status()
     # return resp.json()["response"]
+
+if __name__ == '__main__':
+    handle_request("Hello World!")
