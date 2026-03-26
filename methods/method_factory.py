@@ -4,17 +4,6 @@ import os
 
 # Add parent directory to path to import abstract method
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from methods.abstract_method import AbstractJailbreakMethod
-from methods.baseline.vanilla_method import VanillaMethod
-from methods.baseline.autodan_method import AutoDANMethod
-from methods.baseline.pair import PairMethod
-from methods.baseline.pap_method import PAPMethod
-from methods.proposed.cka_agent import CKAAgentMethod
-from methods.baseline.multi_agent_jailbreak import MultiAgentJailbreakMethod
-from methods.baseline.agent_self_response import AgentSelfResponseMethod
-from methods.baseline.actor_attack.actor_attack import ActorAttack
-from methods.baseline.x_teaming_method import XTeamingMethod
-from methods.baseline.parley_method import ParleyMethod
 
 
 def create_method(method_name: str, config=None, model=None):
@@ -34,24 +23,34 @@ def create_method(method_name: str, config=None, model=None):
     """
     method_name = method_name.lower()
     if method_name == "vanilla":
+        from methods.baseline.vanilla_method import VanillaMethod
         return VanillaMethod(name=method_name, config=config, model=model)
     if method_name == "autodan":
+        from methods.baseline.autodan_method import AutoDANMethod
         return AutoDANMethod(name=method_name, config=config, model=model)
     if method_name == "pair":
+        from methods.baseline.pair import PairMethod
         return PairMethod(name=method_name, config=config, model=model)
     if method_name == "cka-agent":
+        from methods.proposed.cka_agent import CKAAgentMethod
         return CKAAgentMethod(name=method_name, config=config, model=model)
     if method_name == "pap":
+        from methods.baseline.pap_method import PAPMethod
         return PAPMethod(name=method_name, config=config, model=model)
     if method_name == "multi_agent_jailbreak":
+        from methods.baseline.multi_agent_jailbreak import MultiAgentJailbreakMethod
         return MultiAgentJailbreakMethod(name=method_name, config=config, model=model)
     if method_name == "agent_self_response":
+        from methods.baseline.agent_self_response import AgentSelfResponseMethod
         return AgentSelfResponseMethod(name=method_name, config=config, model=model)
     if method_name == "actor_attack":
+        from methods.baseline.actor_attack.actor_attack import ActorAttack
         return ActorAttack(name=method_name, config=config, model=model)
     if method_name == "x_teaming":
+        from methods.baseline.x_teaming_method import XTeamingMethod
         return XTeamingMethod(name=method_name, config=config, model=model)
     if method_name == "parley" or method_name == "tap":
+        from methods.baseline.parley_method import ParleyMethod
         return ParleyMethod(name=method_name, config=config, model=model)
     raise ValueError(
         f"Unsupported method: {method_name}. "
