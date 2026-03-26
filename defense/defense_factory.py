@@ -7,10 +7,6 @@ from typing import Dict, Any, Optional
 import logging
 
 from defense.defense_base import BaseDefense
-from defense.llm_guard import LLMGuardDefense
-from defense.grayswanai_guard import GraySwanAIGuardDefense
-from defense.rephrasing_defense import RephrasingDefense
-from defense.perturbation_defense import PerturbationDefense
 
 
 def create_defense(defense_type: str, config: Dict[str, Any]) -> Optional[BaseDefense]:
@@ -36,24 +32,28 @@ def create_defense(defense_type: str, config: Dict[str, Any]) -> Optional[BaseDe
     defense_type = defense_type.lower()
 
     if defense_type == "llm_guard":
+        from defense.llm_guard import LLMGuardDefense
         logger.info(
             f"Creating LLM Guard defense with model: {config.get('guard_model_name', 'default')}"
         )
         return LLMGuardDefense(config)
 
     elif defense_type == "grayswanai_guard":
+        from defense.grayswanai_guard import GraySwanAIGuardDefense
         logger.info(
             f"Creating GraySwanAI Guard defense with model: {config.get('guard_model_name', 'default')}"
         )
         return GraySwanAIGuardDefense(config)
 
     elif defense_type == "rephrasing":
+        from defense.rephrasing_defense import RephrasingDefense
         logger.info(
             f"Creating Rephrasing defense with model: {config.get('rephrase_model_name', 'default')}"
         )
         return RephrasingDefense(config)
 
     elif defense_type == "perturbation":
+        from defense.perturbation_defense import PerturbationDefense
         logger.info("Creating Perturbation defense")
         return PerturbationDefense(config)
 
