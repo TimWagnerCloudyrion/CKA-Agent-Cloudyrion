@@ -23,9 +23,9 @@ try:
     from vllm import LLM, SamplingParams
 
     VLLM_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError) as e:
     VLLM_AVAILABLE = False
-    logging.warning("vLLM not available. Install with: pip install vllm")
+    logging.warning(f"vLLM not available ({e}). Install with: pip install vllm")
 
 
 class LLMGuardDefense(BaseDefense):
