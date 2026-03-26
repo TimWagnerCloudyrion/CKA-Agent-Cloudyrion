@@ -1,0 +1,14 @@
+[project]
+name = "cka-agent-cloudyrion"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.13.0",
+    "fastchat>=0.1.0",
+    "google-genai>=1.68.0",
+    "nltk>=3.9.3",
+    "pandas>=3.0.1",
+    "psycopg2-binary>=2.9.11",
+]
