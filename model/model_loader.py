@@ -16,7 +16,7 @@ try:
     from vllm import LLM, SamplingParams
 
     VLLM_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError):
     VLLM_AVAILABLE = False
     logging.warning("vLLM not available. Install with: pip install vllm")
 
