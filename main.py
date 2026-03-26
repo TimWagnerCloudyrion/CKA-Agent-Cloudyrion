@@ -1031,6 +1031,11 @@ class JailbreakExperiment:
             except Exception:
                 pass
 
+            # Pass target system prompt to method if available in model config
+            target_sys_prompt = self.config.get("model", {}).get("blackbox", {}).get("target_system_prompt")
+            if target_sys_prompt:
+                method.target_system_prompt = target_sys_prompt
+
             self.logger.info(f"Successfully loaded method: {method_name}")
             return method
 
