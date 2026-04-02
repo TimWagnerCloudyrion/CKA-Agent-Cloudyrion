@@ -4,18 +4,21 @@ description: "Correlated Knowledge Attack Agent - Tree search based jailbreak wi
 config:
   # Controller model (white-box only, responsible for decomposing/synthesizing/evaluating prompts)
   controller_model:
-    name: "huihui-ai/Qwen3-32B-abliterated"
+    name: "deepseek-v3.1:671b-cloud"
+    provider: "openai"
+    api_key: "${OLLAMA_API_KEY}"
+    base_url: "http://localhost:11434/v1/"
     temperature: 0.7
     top_p: 0.9
     max_tokens: 4096
     max_new_tokens: 4096  # Increase the number of generated tokens to ensure complete JSON generation
     input_max_length: 32768  # Increase maximum model length
     device_map: "auto"
-    use_vllm: true
-    auto_init: true  # Avoid automatic initialization in the constructor
-    parse_retry: 2     # Maximum number of retries on parsing failure (total of 3 attempts)
-    enable_thinking: true  # Disable thinking mode
-    remove_thinking: true  # Whether to remove the thinking part from the response (only effective when enable_thinking=true)
+    use_vllm: false
+    auto_init: false  # Avoid automatic initialization in the constructor
+    parse_retry: 1     # Maximum number of retries on parsing failure (total of 3 attempts)
+    enable_thinking: false  # Disable thinking mode
+    remove_thinking: false  # Whether to remove the thinking part from the response (only effective when enable_thinking=true)
     
     # vLLM related configuration (used only for tool calls)
     vllm_kwargs:
@@ -67,13 +70,14 @@ config:
     
     # ---------- Black-box (API models) ----------
     blackbox:
-      provider: "gemini"               # "openai", "anthropic", "cohere", "together", "gemini"
-      name: "gemini-2.5-flash"         # Model name for the provider
+      provider: "openai"               # "openai", "anthropic", "cohere", "together", "gemini"
+      name: "deepseek-v3.1:671b-cloud"         # Model name for the provider
       # Official channel
-      api_key: null                     # Set via GEMINI_API_KEY, OPENAI_API_KEY, etc.
+      api_key: null
+      base_url: "http://localhost:11434/v1/"
       # Gemini proxy mode (effective when provider: "gemini" and use_proxy: true)
-      use_proxy: false                  # Whether to use a proxy
-      proxy_api_key: null               # Set via PROXY_API_KEY environment variable
+      use_proxy: true
+      proxy_api_key: "${OLLAMA_API_KEY}"
 
       max_tokens: 512                  # Max tokens for API generation
       temperature: 0.0                 # Sampling temperature

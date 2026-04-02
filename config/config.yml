@@ -4,10 +4,10 @@
 # Experiment configuration
 # =========================
 experiment:
-  name: "cka-agent-harmbench-gemini25flash-nodefense"
-  output_dir: "../result"
+  name: "cka-agent-harmbench-demoapi-ipi_payment"
+  output_dir: "result"
   log_level: "INFO"
-  max_samples_per_dataset: null  # Set to null for full dataset, or a number for testing
+  max_samples_per_dataset: 1  # Set to null for full dataset, or a number for testing
   seed: 42                      # Random seed (if used by components)
 
 # =========================
@@ -16,7 +16,7 @@ experiment:
 data:
   data_dir: "data/datasets"          # Root folder for datasets
   datasets:
-    - name: "harmbench_cka"           # Dataset name (e.g., 'strongreject_cka', 'harmbench_cka')
+    - name: "custom_cka"           # Dataset name (e.g., 'strongreject_cka', 'harmbench_cka')
       size: "small"                  # "small" or "large" - using small for quick test
 
 # =========================
@@ -44,14 +44,14 @@ model:
     batch_size: 1                    # batch_size=1 is recommended for 120B models
     
     # vLLM engine configuration
-    use_vllm: true                   # Whether to use vLLM for accelerated inference
+    use_vllm: false                   # Whether to use vLLM for accelerated inference
     vllm_kwargs:                     # Additional vLLM configuration parameters
       tensor_parallel_size: 1        # Multi-card TP=2 (requires at least 2 cards in CUDA_VISIBLE_DEVICES)
       trust_remote_code: true
       max_logprobs: 10000
       gpu_memory_utilization: 0.95   # Reduce GPU memory usage to leave space for KV Cache
       max_model_len: 4096            # Reduce max model length to save memory
-      enforce_eager: true            # Disable CUDA graph optimization to avoid getting stuck
+      enforce_eager: false            # Disable CUDA graph optimization to avoid getting stuck
       disable_custom_all_reduce: true
       disable_log_stats: true
       # GPT-OSS-120B MXFP4 quantization configuration
@@ -63,8 +63,8 @@ model:
 
   # ---------- Black-box (API models) - Separate batch_size configuration ----------
   blackbox:
-    provider: "gemini"             # "openai", "anthropic", "cohere", "together", "gemini", "openrouter"
-    name: "gemini-2.5-flash"         # Model name for the provider
+    provider: "openai"             # "openai", "anthropic", "cohere", "together", "gemini", "openrouter"
+    name: "gpt-oss:120b-cloud"         # Model name for the provider
 
     # for example
     #provider: "openai"  
@@ -74,14 +74,12 @@ model:
 
 
     # Official channel
-    api_key: null                     # Set via GEMINI_API_KEY, OPENAI_API_KEY, etc.
+    api_key: "${OLLAMA_API_KEY}"
     # Gemini proxy mode (effective when provider: "gemini" and use_proxy: true)
     use_proxy: false                  # Whether to use proxy
     proxy_api_key: null               # Set via PROXY_API_KEY environment variable
-    base_url: "https://api.openai.com/v1"  # Proxy base address (OpenAI compatible)
-
-
-    # base_url: null                   # Not needed for official Anthropic API
+    base_url: "http://localhost:8083/v1/"
+    target_system_prompt: null
 
     max_tokens: 512                  # Max tokens for API generation
     temperature: 0.7                 # Sampling temperature
@@ -149,11 +147,12 @@ evaluation:
       
       # ---------- Black-box (API models) ----------
       blackbox:
-        provider: "gemini"               # "openai", "anthropic", "cohere", "together", "gemini"
-        name: "gemini-2.5-flash"         # Model name for the provider
+        provider: "openai"               # "openai", "anthropic", "cohere", "together", "gemini"
+        name: "deepseek-v3.1:671b-cloud"         # Model name for the provider
         # Official channel
-        api_key: null                     # Set via GEMINI_API_KEY, OPENAI_API_KEY, etc.
+        api_key: "${OLLAMA_API_KEY}"
         # Gemini proxy mode (effective when provider: "gemini" and use_proxy: true)
+        base_url: "http://localhost:11434/v1/"
         use_proxy: false                  # Whether to use proxy
         proxy_api_key: null               # Set via PROXY_API_KEY environment variable
 
@@ -175,8 +174,8 @@ evaluation:
 # =========================
 methods:
   baselines:
-    # - "parley"          # Parley (TAP - Tree of Attacks) jailbreak method
-    - "cka-agent"       # CKA-Agent method for correlated knowledge jailbreak
+     - "parley"          # Parley (TAP - Tree of Attacks) jailbreak method
+#    - "cka-agent"       # CKA-Agent method for correlated knowledge jailbreak
     # - "actor_attack"   # Actor Attack (multi-turn role-playing jailbreak)
     #- "pap"            # pap (Persuasive Adversarial Prompt) method
     # - "multi_agent_jailbreak"     # multi_agent_jailbreak (Multi-Agent Jailbreak) method
@@ -184,7 +183,7 @@ methods:
     # - "pair"          # pair (Pairwise Similarity) method
     #- "vanilla"        # vanilla (Vanilla) method
     # - "agent_self_response"  # Agent self-response baseline
-    # - "x_teaming"     # X-Teaming method
+#     - "x_teaming"     # X-Teaming method
   # proposed: [] # Do not use proposed methods for now
 
 # =========================

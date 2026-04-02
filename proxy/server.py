@@ -47,21 +47,14 @@ def create_app() -> Flask:
         messages = incoming.get("messages", [])
         model = incoming.get("model", "proxy-model")
 
-        # Extract the last user message as the prompt string
-        prompt = ""
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                prompt = msg.get("content", "")
-                break
-
         logger.info(
             f"Incoming request: model={model}, "
-            f"prompt_length={len(prompt)}"
+            f"num_messages={len(messages)}"
         )
 
-        # Call the user's handler: str -> str
+        # Call the user's handler with the full messages list
         try:
-            response_text = handle_request(prompt)
+            response_text = handle_request(messages)
         except Exception as e:
             logger.error(f"Handler error: {e}", exc_info=True)
             return jsonify({
@@ -126,7 +119,7 @@ def create_app() -> Flask:
 def main():
     parser = argparse.ArgumentParser(description="CKA-Agent API Proxy Server")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Server host")
-    parser.add_argument("--port", type=int, default=8080, help="Server port")
+    parser.add_argument("--port", type=int, default=8083, help="Server port")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
 

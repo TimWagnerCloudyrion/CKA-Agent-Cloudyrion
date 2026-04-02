@@ -2,13 +2,15 @@
 Custom request handler for the CKA-Agent proxy.
 
 Edit the handle_request() function below to call your external API.
-The only contract is: string in, string out.
+The contract is: messages list in, string out.
 """
 
 import json
 import os
 from datetime import datetime
 from pathlib import Path
+
+from agent_demo_example_use_cases.ipi_payment_request import payment_request_ipi, _append_tool_call_information
 
 from dotenv import load_dotenv
 
@@ -17,24 +19,24 @@ load_dotenv()
 IO_LOG_FILE = Path(__file__).parent / "io_log.jsonl"
 
 
-def _log_io(prompt: str, response: str) -> None:
+def _log_io(messages: list, response: str) -> None:
     """Append an input/output pair to the log file."""
     entry = {
         "timestamp": datetime.now().isoformat(),
-        "input": prompt,
+        "input": messages,
         "output": response,
     }
     with open(IO_LOG_FILE, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
 
-def handle_request(prompt: str) -> str:
+def handle_request(messages: list[dict[str, str]]) -> str:
     """
-    Receives the prompt from the CKA-Agent, calls your external API,
+    Receives the messages from the CKA-Agent, calls your external API,
     and returns the response as a string.
 
     Args:
-        prompt: The text prompt sent by the CKA-Agent.
+        messages: The full conversation messages list (role/content dicts).
 
     Returns:
         The response text to send back to the CKA-Agent.
@@ -55,72 +57,20 @@ def handle_request(prompt: str) -> str:
 
     response = client.chat.completions.create(
         model="notrealcreditunion-assistant",
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         extra_body={
-            "tool_ids": ["banking_tools"],
+            "tool_ids": ["banking_tools_v2"],
         },
     )
 
     result = response.choices[0].message.content
-    _log_io(prompt, result)
-    return result
+    tool_prefix = _append_tool_call_information(response)
 
-    raise NotImplementedError(
-        "Edit proxy/handler.py and implement handle_request()"
-    )
+    output = tool_prefix + result
 
-    # -------------------------------------------------------------------------
-    # Example 1: Simple REST API
-    # -------------------------------------------------------------------------
-    # resp = requests.post(
-    #     "https://api.example.com/generate",
-    #     headers={
-    #         "Authorization": "Bearer YOUR_API_KEY",
-    #         "Content-Type": "application/json",
-    #     },
-    #     json={
-    #         "prompt": prompt,
-    #         "max_tokens": 512,
-    #     },
-    #     timeout=120,
-    # )
-    # resp.raise_for_status()
-    # return resp.json()["output"]["text"]
+    _log_io(messages, output)
+    return output
 
-    # -------------------------------------------------------------------------
-    # Example 2: Anthropic API (without their SDK)
-    # -------------------------------------------------------------------------
-    # resp = requests.post(
-    #     "https://api.anthropic.com/v1/messages",
-    #     headers={
-    #         "x-api-key": "YOUR_API_KEY",
-    #         "anthropic-version": "2023-06-01",
-    #         "Content-Type": "application/json",
-    #     },
-    #     json={
-    #         "model": "claude-sonnet-4-20250514",
-    #         "max_tokens": 512,
-    #         "messages": [{"role": "user", "content": prompt}],
-    #     },
-    #     timeout=120,
-    # )
-    # resp.raise_for_status()
-    # return resp.json()["content"][0]["text"]
-
-    # -------------------------------------------------------------------------
-    # Example 3: Local Ollama
-    # -------------------------------------------------------------------------
-    # resp = requests.post(
-    #     "http://localhost:11434/api/generate",
-    #     json={
-    #         "model": "llama3",
-    #         "prompt": prompt,
-    #         "stream": False,
-    #     },
-    #     timeout=300,
-    # )
-    # resp.raise_for_status()
-    # return resp.json()["response"]
 
 if __name__ == '__main__':
-    handle_request("Hello World!")
+    print(handle_request([{"role": "user", "content": "Please summarize http://friendly.com"}]))

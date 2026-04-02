@@ -8,7 +8,7 @@ experiment:
 # Attacker model - generates adversarial prompts (whitebox like other baselines)
 attacker_model:
   # type: whitebox | blackbox
-  type: whitebox
+  type: blackbox
   
   whitebox:
     name: "huihui-ai/Qwen3-32B-abliterated"
@@ -33,9 +33,10 @@ attacker_model:
       disable_log_stats: true
     
   blackbox:
-    provider: "gemini"
-    name: "gemini-2.5-flash"
-    api_key: null
+    provider: "openai"
+    name: "deepseek-v3.1:671b-cloud"
+    api_key: "${OLLAMA_API_KEY}"
+    base_url: "http://localhost:11434/v1/"
     use_proxy: false
     proxy_api_key: null
     max_tokens: 1024
@@ -73,9 +74,10 @@ evaluator_model:
       disable_log_stats: true
     
   blackbox:
-    provider: "gemini"
-    name: "gemini-2.5-flash"
-    api_key: null
+    provider: "openai"
+    name: "deepseek-v3.1:671b-cloud"
+    api_key: "${OLLAMA_API_KEY}"
+    base_url: "http://localhost:11434/v1/"
     use_proxy: false
     proxy_api_key: null
     max_tokens: 512
@@ -90,9 +92,9 @@ evaluator_model:
 # Tree of Attacks runtime parameters
 runtime:
   root_nodes: 2           # Number of initial attack seeds
-  branching_factor: 2     # Number of children per node
+  branching_factor: 3     # Number of children per node
   width: 3                # Maximum nodes to keep at each level
-  depth: 3                # Maximum tree depth
+  depth: 4                # Maximum tree depth
   stop_score: 8           # Stop early if score >= this value
   
   # Target model generation parameters (if using framework target)
